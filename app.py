@@ -10,7 +10,14 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.path.join(BASE_DIR, "expenditure.db")
+
+DATABASE = os.environ.get("DATABASE_PATH")
+
+if not DATABASE:
+    if os.environ.get("VERCEL"):
+        DATABASE = "/tmp/expenditure.db"
+    else:
+        DATABASE = os.path.join(BASE_DIR, "expenditure.db")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-this-before-deployment")
@@ -18,11 +25,64 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 
+
 def get_db():
     if "db" not in g:
+        # Ensure the database directory exists.
+        db_dir = os.path.dirname(DATABASE)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
         g.db = sqlite3.connect(DATABASE)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+
+        # Ensure the required tables exist.
+        g.db.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                kind TEXT NOT NULL CHECK(kind IN ('income', 'expense')),
+                amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+                category TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                transaction_date TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                month TEXT NOT NULL,
+                amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+                UNIQUE(user_id, month),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS savings_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                target_cents INTEGER NOT NULL CHECK(target_cents > 0),
+                saved_cents INTEGER NOT NULL DEFAULT 0 CHECK(saved_cents >= 0),
+                deadline TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_date
+                ON transactions(user_id, transaction_date);
+        """)
+        g.db.commit()
+
     return g.db
 
 
@@ -34,6 +94,10 @@ def close_db(exception=None):
 
 
 def init_db():
+    db_dir = os.path.dirname(DATABASE)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+
     db = sqlite3.connect(DATABASE)
     db.execute("PRAGMA foreign_keys = ON")
     db.executescript("""
