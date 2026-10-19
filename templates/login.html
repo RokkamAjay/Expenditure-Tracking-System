@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-copy">
+    <span class="eyebrow">YOUR MONEY, IN FOCUS</span>
+    <h1>Make every rupee<br><span class="accent-text">count.</span></h1>
+    <p>A calmer way to understand your spending, set goals, and build better money habits.</p>
+    <div class="mini-stats"><span>◉ Simple tracking</span><span>◉ Private account</span><span>◉ Clear insights</span></div>
+  </div>
+  <div class="panel auth-panel">
+    <div class="panel-heading"><span class="eyebrow">WELCOME BACK</span><h2>Log in</h2><p>Continue to your personal dashboard.</p></div>
+    <form method="post" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Username<input name="username" required minlength="3" maxlength="30" autocomplete="username" placeholder="Your username"></label>
+      <label>Password<input name="password" type="password" required autocomplete="current-password" placeholder="Your password"></label>
+      <button class="button button-primary button-full" type="submit">Log in <span>→</span></button>
+    </form>
+    <p class="auth-switch">New to SpendWise? <a href="{{ url_for('register') }}">Create an account</a></p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="welcome-row">
+  <div><span class="eyebrow">PERSONAL FINANCE OVERVIEW</span><h1>Good to see you, {{ user["username"] }} <span class="wave">✦</span></h1><p>Here's how your money is looking this month.</p></div>
+  <form class="month-picker" method="get" action="{{ url_for('dashboard') }}">
+    <label for="month">Reporting month</label><input id="month" name="month" type="month" value="{{ month }}" onchange="this.form.submit()">
+  </form>
+</section>
+
+<section class="summary-grid">
+  <article class="summary-card">
+    <div class="summary-top"><span>Total income</span><span class="summary-icon income-icon">↗</span></div>
+    <div class="summary-value">₹{{ '%.2f'|format(income / 100) }}</div>
+    <div class="summary-foot"><span class="dot dot-green"></span>Money received this month</div>
+  </article>
+  <article class="summary-card">
+    <div class="summary-top"><span>Total expenses</span><span class="summary-icon expense-icon">↘</span></div>
+    <div class="summary-value">₹{{ '%.2f'|format(expenses / 100) }}</div>
+    <div class="summary-foot"><span class="dot dot-red"></span>Money spent this month</div>
+  </article>
+  <article class="summary-card summary-card-highlight">
+    <div class="summary-top"><span>Remaining balance</span><span class="summary-icon balance-icon">₹</span></div>
+    <div class="summary-value">₹{{ '%.2f'|format(balance / 100) }}</div>
+    <div class="summary-foot"><span class="dot dot-green"></span>Income minus expenses</div>
+  </article>
+</section>
+
+<section class="main-grid">
+  <article class="panel">
+    <div class="section-heading"><div><span class="eyebrow">ACTIVITY</span><h2>Add a transaction</h2></div><span class="heading-symbol">＋</span></div>
+    <form method="post" action="{{ url_for('add_transaction') }}" class="form-stack" id="transaction-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field-row">
+        <label>Type<select name="kind" id="kind"><option value="expense">Expense</option><option value="income">Income</option></select></label>
+        <label>Amount (₹)<input type="number" name="amount" min="0.01" max="100000000" step="0.01" required placeholder="0.00"></label>
+      </div>
+      <label>Category<select name="category" id="category" required></select></label>
+      <label>Description <span class="optional">(optional)</span><input name="description" maxlength="120" placeholder="e.g. Lunch with friends"></label>
+      <label>Date<input type="date" name="transaction_date" value="{{ today }}" required></label>
+      <button class="button button-primary button-full" type="submit">＋ Add transaction</button>
+    </form>
+  </article>
+
+  <article class="panel budget-panel">
+    <div class="section-heading"><div><span class="eyebrow">SPENDING LIMIT</span><h2>Monthly budget</h2></div><span class="heading-symbol">◎</span></div>
+    {% if budget_cents %}
+      <div class="budget-numbers"><span>Spent <strong>₹{{ '%.2f'|format(expenses / 100) }}</strong></span><span>Budget <strong>₹{{ '%.2f'|format(budget_cents / 100) }}</strong></span></div>
+      <div class="progress-track"><div class="progress-fill {% if expenses > budget_cents %}over-budget{% endif %}" style="width: {{ budget_percent }}%"></div></div>
+      {% if expenses > budget_cents %}
+        <p class="budget-message danger">You're ₹{{ '%.2f'|format((expenses-budget_cents)/100) }} over budget.</p>
+      {% elif budget_percent >= 80 %}
+        <p class="budget-message warning">You've used {{ budget_percent }}% of your budget. Keep an eye on spending.</p>
+      {% else %}
+        <p class="budget-message">You've used {{ budget_percent }}% of your monthly budget.</p>
+      {% endif %}
+    {% else %}
+      <div class="budget-empty"><div class="budget-empty-icon">◎</div><p>No budget set for {{ month }} yet.</p><small>Choose a limit to keep spending on track.</small></div>
+    {% endif %}
+    <form method="post" action="{{ url_for('save_budget') }}" class="form-stack budget-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <label>Monthly limit (₹)<input type="number" name="budget_amount" min="0.01" max="100000000" step="0.01" required placeholder="e.g. 10000" value="{{ '%.2f'|format(budget_cents/100) if budget_cents else '' }}"></label>
+      <button class="button button-secondary button-full" type="submit">{{ 'Update budget' if budget_cents else 'Set monthly budget' }}</button>
+    </form>
+  </article>
+</section>
+
+<section class="charts-grid">
+  <article class="panel chart-panel"><div class="section-heading"><div><span class="eyebrow">YOUR HABITS</span><h2>Spending by category</h2></div></div><div class="chart-wrap"><canvas id="categoryChart"></canvas><div id="categoryEmpty" class="chart-empty" hidden>No expenses for this month yet.</div></div></article>
+  <article class="panel chart-panel"><div class="section-heading"><div><span class="eyebrow">OVER TIME</span><h2>Income vs expenses</h2></div></div><div class="chart-wrap chart-wrap-wide"><canvas id="monthlyChart"></canvas><div id="monthlyEmpty" class="chart-empty" hidden>Add transactions to see your monthly trend.</div></div></article>
+</section>
+
+<section class="panel savings-panel">
+  <div class="section-heading"><div><span class="eyebrow">FUTURE YOU</span><h2>Savings goal</h2></div><span class="heading-symbol">✦</span></div>
+  {% if goal %}
+    <div class="goal-topline"><div><strong>{{ goal["title"] }}</strong><p>₹{{ '%.2f'|format(goal["saved_cents"]/100) }} saved of ₹{{ '%.2f'|format(goal["target_cents"]/100) }}</p></div><span class="goal-percent">{{ goal_percent }}%</span></div>
+    <div class="progress-track goal-track"><div class="progress-fill" style="width: {{ goal_percent }}%"></div></div>
+    {% if goal["deadline"] %}<p class="goal-deadline">Target date: {{ goal["deadline"] }}</p>{% endif %}
+  {% else %}
+    <p class="goal-intro">Create a savings target and track your progress over time.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('save_savings_goal') }}" class="goal-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Goal name<input name="goal_title" maxlength="80" required placeholder="e.g. New laptop" value="{{ goal['title'] if goal else '' }}"></label>
+    <div class="field-row">
+      <label>Target (₹)<input type="number" name="target_amount" min="0.01" max="100000000" step="0.01" required placeholder="50000" value="{{ '%.2f'|format(goal['target_cents']/100) if goal else '' }}"></label>
+      <label>Already saved (₹)<input type="number" name="saved_amount" min="0" max="100000000" step="0.01" required placeholder="5000" value="{{ '%.2f'|format(goal['saved_cents']/100) if goal else '0.00' }}"></label>
+    </div>
+    <label>Target date <span class="optional">(optional)</span><input type="date" name="deadline" value="{{ goal['deadline'] if goal and goal['deadline'] else '' }}"></label>
+    <button class="button button-secondary button-full" type="submit">{{ 'Update savings goal' if goal else 'Create savings goal' }}</button>
+  </form>
+</section>
+
+<section class="panel transactions-panel">
+  <div class="section-heading transactions-heading"><div><span class="eyebrow">YOUR RECORDS</span><h2>Transactions <span class="count-pill">{{ transactions|length }}</span></h2></div><a class="button button-quiet button-small export-link" href="{{ url_for('export_csv', month=month) }}">↓ Export CSV</a></div>
+  <form class="filter-bar" method="get" action="{{ url_for('dashboard') }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <label>Search<input name="q" value="{{ search }}" placeholder="Description or category"></label>
+    <label>Type<select name="kind"><option value="">All types</option><option value="expense" {% if kind_filter=='expense' %}selected{% endif %}>Expenses</option><option value="income" {% if kind_filter=='income' %}selected{% endif %}>Income</option></select></label>
+    <label>Category<select name="category"><option value="">All categories</option>{% for cat in ['Food','Transport','Shopping','Bills','Health','Education','Entertainment','Salary','Allowance','Freelance','Gift','Other'] %}<option value="{{ cat }}" {% if category_filter==cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}</select></label>
+    <button class="button button-primary" type="submit">Filter</button>
+    <a class="button button-quiet" href="{{ url_for('dashboard', month=month) }}">Reset</a>
+  </form>
+  {% if transactions %}
+  <div class="table-scroll"><table><thead><tr><th>Transaction</th><th>Category</th><th>Date</th><th>Amount</th><th></th></tr></thead><tbody>
+    {% for item in transactions %}
+    <tr>
+      <td><div class="transaction-title"><span class="transaction-symbol {% if item['kind']=='income' %}income-icon{% else %}expense-icon{% endif %}">{% if item['kind']=='income' %}↗{% else %}↘{% endif %}</span><div><strong>{{ item["description"] or item["category"] }}</strong><small>{{ item["kind"]|title }}</small></div></div></td>
+      <td><span class="category-pill">{{ item["category"] }}</span></td>
+      <td class="muted-cell">{{ item["transaction_date"] }}</td>
+      <td class="amount-cell {% if item['kind']=='income' %}amount-income{% else %}amount-expense{% endif %}">{% if item["kind"]=="income" %}+{% else %}−{% endif %}₹{{ '%.2f'|format(item["amount_cents"]/100) }}</td>
+      <td><form method="post" action="{{ url_for('delete_transaction', transaction_id=item['id']) }}" onsubmit="return confirm('Delete this transaction?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="month" value="{{ month }}"><button class="icon-button" type="submit" aria-label="Delete transaction" title="Delete transaction">×</button></form></td>
+    </tr>
+    {% endfor %}
+  </tbody></table></div>
+  {% else %}
+  <div class="empty-state"><div class="empty-state-icon">↗</div><h3>Your story starts here</h3><p>Add your first income or expense to see it appear in this table.</p></div>
+  {% endif %}
+</section>
+
+<script id="chart-data" type="application/json">{{ {"categories": category_data, "monthly": monthly_data}|tojson }}</script>
+{% endblock %}

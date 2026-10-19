@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-copy">
+    <span class="eyebrow">A FRESH START</span>
+    <h1>Your finances.<br><span class="accent-text">Your clarity.</span></h1>
+    <p>Create an account to keep your transactions and monthly budget in one place.</p>
+    <div class="mini-stats"><span>◉ Your own dashboard</span><span>◉ Passwords are hashed</span></div>
+  </div>
+  <div class="panel auth-panel">
+    <div class="panel-heading"><span class="eyebrow">GET STARTED</span><h2>Create account</h2><p>It only takes a minute.</p></div>
+    <form method="post" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Username<input name="username" required minlength="3" maxlength="30" autocomplete="username" placeholder="e.g. ajay_01"></label>
+      <label>Password<input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"><small>Use a unique password for this demo.</small></label>
+      <button class="button button-primary button-full" type="submit">Create account <span>→</span></button>
+    </form>
+    <p class="auth-switch">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+  </div>
+</section>
+{% endblock %}
